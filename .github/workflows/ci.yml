@@ -1,0 +1,26 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          {
+            POSTGRES_USER: payhook,
+            POSTGRES_PASSWORD: yhook,
+            POSTGRES_DB: payhook,
+          }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U payhook" --health-interval 2s --health-retries 15
+    env:
+      TEST_DATABASE_URL: postgres://payhook:payhook@localhost:5432/payhook?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod, cache: true }
+      - run: go vet ./...
+      - run: go test -race -p 1 ./... # -p 1: packages share one test database
+      - run: docker build -t payhook .pa
