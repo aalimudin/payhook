@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -58,6 +59,15 @@ func run() error {
 	}
 	if k := os.Getenv("STRIPE_WEBHOOK_SECRET"); k != "" {
 		provs = append(provs, provider.Stripe{Secret: k})
+	}
+	for name, env := range map[string]string{"midtrans-snap": "MIDTRANS_SNAP_PUBLIC_KEY", "xendit-snap": "XENDIT_SNAP_PUBLIC_KEY"} {
+		if pemKey := os.Getenv(env); pemKey != "" {
+			sp, err := provider.NewSNAP(name, pemKey)
+			if err != nil {
+				return fmt.Errorf("%s: %w", env, err)
+			}
+			provs = append(provs, sp)
+		}
 	}
 	if len(provs) == 0 {
 		return errors.New("no provider secret configured")

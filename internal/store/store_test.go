@@ -78,3 +78,25 @@ func TestOutOfOrderAndAmountMismatch(t *testing.T) {
 		t.Fatalf("outbox rows = %d, want 2", n)
 	}
 }
+
+func TestZeroAmountPendingThenPaid(t *testing.T) {
+	st := setup(t)
+	ctx := context.Background()
+	for i, c := range []struct {
+		id, status string
+		amt        int64
+		want       string
+	}{
+		{"a", "pending", 0, Processed}, // SNAP pending carries no amount
+		{"b", "paid", 100, Processed},
+		{"c", "refunded", 0, Processed},
+	} {
+		got, err := st.Record(ctx, "midtrans-snap", provider.Event{ID: c.id, OrderRef: "o1", Status: c.status, Amount: c.amt})
+		if err != nil || got != c.want {
+			t.Fatalf("step %d: %s %v", i, got, err)
+		}
+	}
+	if got, _ := st.Record(ctx, "midtrans-snap", provider.Event{ID: "z", OrderRef: "o2", Status: "paid", Amount: 0}); got != RejectedAmount {
+		t.Fatalf("zero-amount paid: %s", got)
+	}
+}

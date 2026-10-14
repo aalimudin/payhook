@@ -63,9 +63,17 @@ func (s Store) Record(ctx context.Context, prov string, ev provider.Event) (stri
 		return "", err
 	}
 
+	// SNAP pending events carry no amount; adopt the first non-zero one so a later paid is checked against it.
+	if amount == 0 && ev.Amount > 0 {
+		amount = ev.Amount
+		if _, err = tx.ExecContext(ctx, `UPDATE payments SET amount=$3 WHERE provider=$1 AND order_ref=$2`, prov, ev.OrderRef, amount); err != nil {
+			return "", err
+		}
+	}
+
 	outcome := Processed
 	switch {
-	case ev.Status == payment.Paid && ev.Amount != amount:
+	case ev.Status == payment.Paid && (ev.Amount <= 0 || ev.Amount != amount):
 		outcome = RejectedAmount
 		slog.Warn("amount mismatch", "provider", prov, "order", ev.OrderRef, "event", ev.ID, "expected", amount, "got", ev.Amount)
 	case payment.Transition(cur, ev.Status) != nil:
